@@ -371,6 +371,15 @@ select.inp option{background:var(--navy2)}
 .ob-s2-barista-sub{font-size:13px;color:rgba(205,213,224,.8);line-height:1.55}
 
 </style>
+
+  <!-- PWA -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HAVN">
+  <meta name="theme-color" content="#05111F">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
 <div id="phone">
@@ -722,16 +731,63 @@ function updateShortfall(){
 
 // ── Submit ──
 let submitted=false;
-function handleSubmit(){
+
+// Track referral source from URL
+(function(){
+  const p = new URLSearchParams(window.location.search);
+  const ref = p.get('ref');
+  const utm = p.get('utm_source');
+  if(ref) sessionStorage.setItem('havn_ref', ref);
+  if(utm) sessionStorage.setItem('havn_utm', utm);
+})();
+
+// ── Supabase config — replace with your actual values ──
+const SUPABASE_URL = 'https://xrgabzvorglhploswtwr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_GciNA3oVP4lVqS_K9b5V1A_d9MeU_9x';
+
+async function saveToSupabase(data) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify(data)
+    });
+    return res.ok;
+  } catch(e) {
+    return false; // fail silently — don't block the user
+  }
+}
+
+async function handleSubmit(){
   const name=document.getElementById('inp-name').value.trim();
   const phone=document.getElementById('inp-phone').value.trim();
   const industry=document.getElementById('inp-industry').value;
+  const pay=document.getElementById('inp-pay').value;
+  const payday=document.getElementById('inp-payday').value;
   if(!name||!phone||!industry){
     alert('Please fill in your name, mobile, and industry to claim your spot.');
     return;
   }
   if(submitted) return;
   submitted=true;
+
+  // Save to Supabase
+  await saveToSupabase({
+    full_name: name,
+    mobile: phone,
+    industry: industry,
+    pay_range: pay,
+    payday: payday,
+    referrer: new URLSearchParams(window.location.search).get('ref') || null,
+    source: document.referrer || 'direct'
+  });
+
   count++;
   document.getElementById('pos-num').textContent='#'+count.toLocaleString();
   document.getElementById('soc-count').textContent=count.toLocaleString()+' workers';
@@ -762,6 +818,31 @@ setTimeout(function(){
   ob.style.opacity='1';
   ob.style.pointerEvents='all';
 },2200);
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// PWA install prompt
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // Show install button after onboarding completes
+  const installBtn = document.getElementById('install-btn');
+  if (installBtn) installBtn.style.display = 'flex';
+});
+
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  }
+}
 </script>
 </body>
 </html>
